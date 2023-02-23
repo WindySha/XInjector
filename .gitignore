@@ -1,0 +1,6 @@
+/build
+/.vscode
+/libs
+/obj
+/loader
+run.sh

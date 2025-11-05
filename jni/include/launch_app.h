@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static void xinjector_kill_application(const char* packageName)
 {
@@ -36,16 +37,31 @@ static void xinjector_launch_application_by_activity(const char* packageName)
     system(start_cmd);
 }
 
-static pid_t fetch_app_process_pid(const char* package_name) {
+static pid_t fetch_app_process_pid(const char* package_name, int infinite_wait) {
     pid_t _pid = 0;
-    int count = 100;
-    for (size_t i = 0; i < count; i++) {
-        _pid = xinjector_get_pid(package_name);
-        if (_pid > 0) {
-            LOGI("getPID iterate count i = %d  target pid = %d", i, _pid);
-            break;
+    if (infinite_wait) {
+        // Infinite loop: wait until app starts
+        size_t i = 0;
+        while (1) {
+            _pid = xinjector_get_pid(package_name);
+            if (_pid > 0) {
+                LOGI("getPID iterate count i = %zu  target pid = %d", i, _pid);
+                break;
+            }
+            usleep(500);
+            i++;
         }
-        usleep(500);
+    } else {
+        // Limited retries: try up to 100 times
+        int count = 100;
+        for (size_t i = 0; i < count; i++) {
+            _pid = xinjector_get_pid(package_name);
+            if (_pid > 0) {
+                LOGI("getPID iterate count i = %zu  target pid = %d", i, _pid);
+                break;
+            }
+            usleep(500);
+        }
     }
     return _pid;
 }
@@ -55,12 +71,19 @@ static pid_t xinjector_restart_app_and_getpid(const char* package_name)
     xinjector_kill_application(package_name);
     xinjector_launch_application(package_name);
 
-    pid_t pid = fetch_app_process_pid(package_name);
+    pid_t pid = fetch_app_process_pid(package_name, 0);  // Limited retries for restart mode
 
     if (pid <= 0) {
         xinjector_launch_application_by_activity(package_name);
-        pid = fetch_app_process_pid(package_name);
+        pid = fetch_app_process_pid(package_name, 0);  // Limited retries for restart mode
     }
 
+    return pid;
+}
+
+static pid_t xinjector_wait_app_and_getpid(const char* package_name)
+{
+    // Wait for app to start (infinite loop)
+    pid_t pid = fetch_app_process_pid(package_name, 1);  // Infinite wait
     return pid;
 }

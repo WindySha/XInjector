@@ -1,3 +1,7 @@
+# Override NDK_TOOLCHAIN to let NDK auto-select the toolchain
+# This fixes the error: NDK_TOOLCHAIN is defined to the unsupported value
+override NDK_TOOLCHAIN :=
+
 LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)

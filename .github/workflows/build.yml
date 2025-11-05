@@ -1,0 +1,81 @@
+name: Build XInjector
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: '27.0.12077973'
+        
+    - name: Set up environment variables
+      run: |
+        echo "NDK_PATH=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        # Unset NDK_TOOLCHAIN to avoid build errors
+        echo "NDK_TOOLCHAIN=" >> $GITHUB_ENV
+        
+    - name: Build XInjector
+      run: |
+        cd ${{ github.workspace }}
+        unset NDK_TOOLCHAIN || true
+        ndk-build
+        
+    - name: Check build artifacts
+      run: |
+        ls -lh libs/armeabi-v7a/xinjector
+        ls -lh libs/arm64-v8a/xinjector
+        file libs/armeabi-v7a/xinjector
+        file libs/arm64-v8a/xinjector
+        
+    - name: Create release archive
+      run: |
+        mkdir -p release
+        cp libs/armeabi-v7a/xinjector release/xinjector-armeabi-v7a
+        cp libs/arm64-v8a/xinjector release/xinjector-arm64-v8a
+        cd release
+        tar -czf xinjector-binaries.tar.gz xinjector-armeabi-v7a xinjector-arm64-v8a
+        cd ..
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: xinjector-binaries
+        path: |
+          libs/armeabi-v7a/xinjector
+          libs/arm64-v8a/xinjector
+          release/xinjector-binaries.tar.gz
+        retention-days: 90
+        
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/xinjector-binaries.tar.gz
+          libs/armeabi-v7a/xinjector
+          libs/arm64-v8a/xinjector
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

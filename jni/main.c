@@ -5,25 +5,33 @@
 #include <string.h>
 #include <unistd.h>
 
-// ./xinjector  package_name  lib_path(s)  entry_point_name  params
+// ./xinjector [-r] package_name  lib_path(s)  entry_point_name  params
 int main(int argc, char const* argv[])
 {
     const char* package_name = NULL;
     const char* entry_point_function_name = NULL;
     const char* entry_point_function_parameters = NULL;
     const char* library_paths = NULL;
+    int restart_app = 0;  // -r flag: restart app
 
-    if (argc < 3 || argc > 5) {
+    // Parse -r flag
+    int arg_index = 1;
+    if (argc >= 2 && strcmp(argv[arg_index], "-r") == 0) {
+        restart_app = 1;
+        arg_index++;
+    }
+
+    if (argc < arg_index + 2 || argc > arg_index + 4) {
         goto bad_usage;
     }
 
-    package_name = argv[1];
-    library_paths = argv[2];
-    if (argc > 3) {
-        entry_point_function_name = argv[3];
+    package_name = argv[arg_index];
+    library_paths = argv[arg_index + 1];
+    if (argc > arg_index + 2) {
+        entry_point_function_name = argv[arg_index + 2];
     }
-    if (argc > 4) {
-        entry_point_function_parameters = argv[4];
+    if (argc > arg_index + 3) {
+        entry_point_function_parameters = argv[arg_index + 3];
     }
 
     if (library_paths == NULL) {
@@ -65,7 +73,15 @@ int main(int argc, char const* argv[])
         }
     }
 
-    pid_t target_pid = xinjector_restart_app_and_getpid(package_name);
+    pid_t target_pid = 0;
+    if (restart_app) {
+        // Use -r flag: kill and restart app
+        target_pid = xinjector_restart_app_and_getpid(package_name);
+    } else {
+        // Without -r flag: wait for app to start (infinite loop)
+        target_pid = xinjector_wait_app_and_getpid(package_name);
+    }
+    
     if (target_pid <= 0) {
         printf("Get pid of %s failed.", package_name);
         return 0;
@@ -75,7 +91,7 @@ int main(int argc, char const* argv[])
     return 1;
 
 bad_usage: {
-    printf("Usage: %s <package name> <so path(s)>  <entry point function name> <entry point function parameters>\n 1. multi so paths must be seperated by ':' , they are loaded in order;\n 2. entry point function name and parameters are alternative;\n", argv[0]);
+    printf("Usage: %s [-r] <package name> <so path(s)>  <entry point function name> <entry point function parameters>\n 1. -r: restart app (kill and restart) before injection\n 2. multi so paths must be seperated by ':' , they are loaded in order;\n 3. entry point function name and parameters are alternative;\n", argv[0]);
     return 0;
     }
 }
